@@ -199,3 +199,60 @@ runOp tape (Loop body) = if current tape == 0
   then tape
   else let tape' = run tape body in runOp tape' (Loop body)
 
+
+------------------------------------------------------------------------------------------
+-- Interpreter v2.0
+------------------------------------------------------------------------------------------
+
+-- | In Haskell side effects can be performed safely only in functions that
+-- return a value inside the 'IO' type to identify functions that are not pure.
+-- Let's create a new 'runIO' function that's identical to 'run' but returns
+-- 'IO Tape' instead of 'Tape'. To make it compile we then replace 'foldl' with
+-- 'foldM'.
+runIO :: Tape -> [Op] -> IO Tape
+runIO tape ops = foldM runOpIO tape ops
+
+-- | We have to change the return type of 'runOp' too in order to make it
+-- return 'IO Tape'.
+--
+-- Here the changes to make it compile are a bit more involved.
+--
+-- First, pure instructions need to wrap the final 'Tape' in 'IO' by using the
+-- 'pure' function. Clearly the type 'Tape' is not the same as 'IO Tape' and we
+-- need a way to lift 'Tape' into 'IO Tape' and that's what 'pure' does: it
+-- takes a pure value and simply wraps it in the 'IO' context.
+--
+-- Then to make the 'Loop' variant compile we have to use the 'do' notation to
+-- be able to extract the 'Tape' from 'IO Tape' that 'runIO' returns.
+--
+-- The implementation for 'In' and 'Out' are dead simple now because they're
+-- just a matter of calling a couple of functions to print and read from
+-- stdin/stdout.
+--
+-- This doesn't want to be a complete and comphrensive guide to 'IO' (and
+-- monads), but hopefully it should be enough to understand what's going on.
+--
+runOpIO :: Tape -> Op -> IO Tape
+runOpIO tape In = do
+  l <- getLine
+  pure tape { current = ord (head l) }
+runOpIO tape Out = do
+  putChar (chr (current tape))
+  pure tape
+runOpIO tape CellInc = pure tape { current = current tape + 1 }
+runOpIO tape CellDec = pure tape { current = current tape - 1 }
+runOpIO tape SpInc   = pure Tape
+  { left    = current tape : left tape
+  , current = head (right tape)
+  , right   = tail (right tape)
+  }
+runOpIO tape SpDec = pure Tape
+  { left    = tail (left tape)
+  , current = head (left tape)
+  , right   = current tape : right tape
+  }
+runOpIO tape (Loop body) = if current tape == 0
+  then pure tape
+  else do
+    tape' <- runIO tape body
+    runOpIO tape' (Loop body)
