@@ -159,7 +159,7 @@ zeroedTape = Tape {left = repeat 0, current = 0, right = repeat 0}
 -- 7
 --
 run :: Tape -> [Op] -> Tape
-run tape ops = error "TODO"
+run tape ops = foldl runOp tape ops
 
 -- | 'runOp' runs only instructions that are pure (for now) over the given tape
 -- which are: 'SpInc', 'SpDec', 'CellInc', 'CellDec' and 'Loop'.
@@ -181,7 +181,21 @@ run tape ops = error "TODO"
 -- Cheatsheet.
 --
 runOp :: Tape -> Op -> Tape
-runOp _    In  = error "In is not pure, cannot implement"
-runOp _    Out = error "Out is not pure, cannot implement"
-runOp tape op  = error "TODO"
+runOp _    In      = error "In is not pure, cannot implement"
+runOp _    Out     = error "Out is not pure, cannot implement"
+runOp tape CellInc = tape { current = current tape + 1 }
+runOp tape CellDec = tape { current = current tape - 1 }
+runOp tape SpInc   = Tape
+  { left    = current tape : left tape
+  , current = head (right tape)
+  , right   = tail (right tape)
+  }
+runOp tape SpDec = Tape
+  { left    = tail (left tape)
+  , current = head (left tape)
+  , right   = current tape : right tape
+  }
+runOp tape (Loop body) = if current tape == 0
+  then tape
+  else let tape' = run tape body in runOp tape' (Loop body)
 
