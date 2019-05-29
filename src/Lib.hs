@@ -83,7 +83,14 @@ parse s  = let (op, rest) = parseOp s in op : parse rest
 -- (Loop [CellInc, CellDec, Loop []], ",")
 --
 parseOp :: String -> (Op, String)
-parseOp s = error "TODO"
+parseOp ('>' : rest) = (SpInc, rest)
+parseOp ('<' : rest) = (SpDec, rest)
+parseOp ('+' : rest) = (CellInc, rest)
+parseOp ('-' : rest) = (CellDec, rest)
+parseOp ('.' : rest) = (Out, rest)
+parseOp (',' : rest) = (In, rest)
+parseOp ('[' : rest) =
+  let (loop, rest') = parseLoopBody rest in (Loop loop, rest')
 
 
 -- | 'parseLoopBody' is meant to parse all the 'Op' inside a loop and stop when
@@ -100,4 +107,8 @@ parseOp s = error "TODO"
 --   results.
 --
 parseLoopBody :: String -> ([Op], String)
-parseLoopBody i = error "TODO"
+parseLoopBody (']' : rest) = ([], rest)
+parseLoopBody s =
+  let (atom , s'  ) = parseOp s
+      (atoms, rest) = parseLoopBody s'
+  in  (atom : atoms, rest)
