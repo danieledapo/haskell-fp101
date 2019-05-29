@@ -3,7 +3,7 @@ module Lib where
 import           Data.Char
 import           Control.Monad
 
--- |The 'Op' ADT represents all the instructions defined in the Brainfuck spec.
+-- | The 'Op' ADT represents all the instructions defined in the Brainfuck spec.
 data Op = SpInc     -- ^ stack pointer increment, aka move right. Symbol: >
         | SpDec     -- ^ stack pointer decrement, aka move left. Symbol: <
         | CellInc   -- ^ increment current value. Symbol: +
@@ -20,13 +20,20 @@ data Op = SpInc     -- ^ stack pointer increment, aka move right. Symbol: >
 -- spec. A couple of examples 
 --
 -- >>> prettyOp CellInc
--- +
+-- "+"
 --
 -- >>> prettyOp (Loop [Out, In, SpInc, Loop []])
--- [.,>[]]
+-- "[.,>[]]"
 --
 -- Hint: the idea here is to pattern match against the 'Op' and return the
 -- proper symbol. To implement the function for 'Loop' you might want to take a
 -- look at 'map' and 'concat' (or 'concatMap' if you're feeling brave) ;).
 prettyOp :: Op -> String
-prettyOp op = error "TO DO"
+prettyOp CellInc     = "+"
+prettyOp CellDec     = "-"
+prettyOp SpInc       = ">"
+prettyOp SpDec       = "<"
+prettyOp Out         = "."
+prettyOp In          = ","
+prettyOp (Loop loop) = '[' : concatMap prettyOp loop ++ "]"
+
