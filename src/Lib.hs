@@ -1,5 +1,10 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Lib where
 
+import           System.IO                      ( hFlush
+                                                , stdout
+                                                )
 import           Data.Char
 import           Control.Monad
 
@@ -131,7 +136,7 @@ parseLoopBody s =
 data Tape =
   Tape
     { left :: [Int]
-    , current :: Int
+    , current :: {-# UNPACK #-} !Int
     , right :: [Int]
     }
   deriving (Show)
@@ -159,7 +164,7 @@ zeroedTape = Tape {left = repeat 0, current = 0, right = repeat 0}
 -- 7
 --
 run :: Tape -> [Op] -> Tape
-run tape ops = foldl runOp tape ops
+run = foldl runOp
 
 -- | 'runOp' runs only instructions that are pure (for now) over the given tape
 -- which are: 'SpInc', 'SpDec', 'CellInc', 'CellDec' and 'Loop'.
@@ -187,17 +192,17 @@ runOp tape CellInc = tape { current = current tape + 1 }
 runOp tape CellDec = tape { current = current tape - 1 }
 runOp tape SpInc   = Tape
   { left    = current tape : left tape
-  , current = head (right tape)
-  , right   = tail (right tape)
+  , current = head . right $ tape
+  , right   = tail . right $ tape
   }
 runOp tape SpDec = Tape
-  { left    = tail (left tape)
-  , current = head (left tape)
+  { left    = tail . left $ tape
+  , current = head . left $ tape
   , right   = current tape : right tape
   }
-runOp tape (Loop body) = if current tape == 0
-  then tape
-  else let tape' = run tape body in runOp tape' (Loop body)
+runOp tape (Loop body)
+  | current tape == 0 = tape
+  | otherwise         = let tape' = run tape body in runOp tape' (Loop body)
 
 
 ------------------------------------------------------------------------------------------
@@ -210,7 +215,10 @@ runOp tape (Loop body) = if current tape == 0
 -- 'IO Tape' instead of 'Tape'. To make it compile we then replace 'foldl' with
 -- 'foldM'.
 runIO :: Tape -> [Op] -> IO Tape
-runIO tape ops = foldM runOpIO tape ops
+runIO !tape []       = pure tape
+runIO !tape (o : os) = do
+  !tape' <- runOpIO tape o
+  runIO tape' os
 
 -- | We have to change the return type of 'runOp' too in order to make it
 -- return 'IO Tape'.
@@ -233,26 +241,27 @@ runIO tape ops = foldM runOpIO tape ops
 -- monads), but hopefully it should be enough to understand what's going on.
 --
 runOpIO :: Tape -> Op -> IO Tape
-runOpIO tape In = do
-  l <- getLine
-  pure tape { current = ord (head l) }
-runOpIO tape Out = do
-  putChar (chr (current tape))
-  pure tape
-runOpIO tape CellInc = pure tape { current = current tape + 1 }
-runOpIO tape CellDec = pure tape { current = current tape - 1 }
-runOpIO tape SpInc   = pure Tape
+runOpIO !tape CellInc = pure tape { current = current tape + 1 }
+runOpIO !tape CellDec = pure tape { current = current tape - 1 }
+runOpIO !tape SpInc   = pure Tape
   { left    = current tape : left tape
-  , current = head (right tape)
-  , right   = tail (right tape)
+  , current = head . right $ tape
+  , right   = tail . right $ tape
   }
-runOpIO tape SpDec = pure Tape
-  { left    = tail (left tape)
-  , current = head (left tape)
+runOpIO !tape SpDec = pure Tape
+  { left    = tail . left $ tape
+  , current = head . left $ tape
   , right   = current tape : right tape
   }
-runOpIO tape (Loop body) = if current tape == 0
-  then pure tape
-  else do
-    tape' <- runIO tape body
-    runOpIO tape' (Loop body)
+runOpIO !tape l@(Loop !body)
+  | current tape == 0 = pure tape
+  | otherwise = do
+    !tape' <- runIO tape body
+    runOpIO tape' l
+runOpIO !tape In = do
+  l <- getLine
+  pure tape { current = ord . head $ l }
+runOpIO !tape Out = do
+  putChar (chr (current tape))
+  hFlush stdout
+  pure tape
